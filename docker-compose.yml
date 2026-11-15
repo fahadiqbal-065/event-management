@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=eventuser
+      - POSTGRES_PASSWORD=eventpass
+      - POSTGRES_DB=eventsdb
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  backend:
+    image: ${DOCKERHUB_USER}/eventmgmt-backend:latest
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      - DB_HOST=db
+      - DB_USER=eventuser
+      - DB_PASSWORD=eventpass
+      - DB_NAME=eventsdb
+    depends_on:
+      - db
+    ports:
+      - "5000:5000"
+
+  frontend:
+    image: ${DOCKERHUB_USER}/eventmgmt-frontend:latest
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  db-data:

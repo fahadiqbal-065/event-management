@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Event Management System</title>
+  <style>
+    :root {
+      --bg: #f4f6f5;
+      --card: #ffffff;
+      --text: #17252a;
+      --muted: #5f7076;
+      --line: #d9e1df;
+      --accent: #0f766e;
+      --accent-dark: #0b5a54;
+      --error: #b3261e;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.5; }
+    header { background: var(--accent); color: #fff; padding: 36px 16px; }
+    header div, main { max-width: 920px; margin: 0 auto; }
+    h1 { margin: 0 0 4px; font-size: 30px; }
+    header p { margin: 0; opacity: .9; }
+    main { padding: 28px 16px 56px; }
+    h2 { font-size: 20px; margin: 32px 0 12px; }
+    .events { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .event { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+      border-radius: 8px; padding: 14px 16px; }
+    .event h3 { margin: 0 0 6px; font-size: 17px; }
+    .event p { margin: 0; color: var(--muted); font-size: 14px; }
+    form { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px;
+      display: grid; gap: 12px; max-width: 520px; }
+    label { font-weight: 600; font-size: 14px; display: grid; gap: 4px; }
+    input, select { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    button { font: inherit; font-weight: 600; padding: 12px; border: 0; border-radius: 8px;
+      background: var(--accent); color: #fff; cursor: pointer; }
+    button:hover { background: var(--accent-dark); }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .msg { min-height: 1.4em; font-size: 14px; margin: 0; }
+    .ok { color: var(--accent-dark); } .err { color: var(--error); }
+    ul { list-style: none; margin: 0; padding: 0; background: var(--card); border: 1px solid var(--line);
+      border-radius: 10px; max-width: 520px; }
+    li { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    li:last-child { border-bottom: 0; }
+    li small { color: var(--muted); }
+    .empty { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Event Management System</h1>
+      <p>Browse upcoming events and register in one step.</p>
+    </div>
+  </header>
+
+  <main>
+    <h2>Upcoming events</h2>
+    <div class="events" id="events"></div>
+
+    <h2>Register for an event</h2>
+    <form id="form">
+      <label>Event
+        <select id="event" required></select>
+      </label>
+      <label>Full name
+        <input id="name" type="text" required autocomplete="off">
+      </label>
+      <label>Email
+        <input id="email" type="email" required autocomplete="off">
+      </label>
+      <label>Team or department (optional)
+        <input id="team" type="text" autocomplete="off">
+      </label>
+      <button type="submit">Register</button>
+      <p class="msg" id="msg" role="status"></p>
+    </form>
+
+    <h2>Latest registrations</h2>
+    <ul id="latest"></ul>
+  </main>
+
+  <script>
+    const eventsBox = document.getElementById('events');
+    const eventSelect = document.getElementById('event');
+    const latest = document.getElementById('latest');
+    const msg = document.getElementById('msg');
+
+    async function api(path, options) {
+      const res = await fetch('/api' + path, { headers: { 'Content-Type': 'application/json' }, ...options });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Request failed (' + res.status + ')');
+      return data;
+    }
+
+    function say(text, ok) {
+      msg.textContent = text;
+      msg.className = 'msg ' + (ok ? 'ok' : 'err');
+    }
+
+    async function loadEvents() {
+      try {
+        const events = await api('/events');
+        eventsBox.innerHTML = '';
+        eventSelect.innerHTML = '';
+        events.forEach((e) => {
+          const card = document.createElement('div');
+          card.className = 'event';
+          const h = document.createElement('h3'); h.textContent = e.title;
+          const p = document.createElement('p'); p.textContent = e.category + ' | ' + e.venue + ' | ' + e.date;
+          card.append(h, p);
+          eventsBox.appendChild(card);
+          const opt = document.createElement('option'); opt.value = e.id; opt.textContent = e.title;
+          eventSelect.appendChild(opt);
+        });
+      } catch (err) {
+        say('Could not load events. The backend may still be starting; refresh in a few seconds.', false);
+      }
+    }
+
+    async function loadLatest() {
+      try {
+        const rows = await api('/registrations');
+        latest.innerHTML = '';
+        if (rows.length === 0) {
+          const li = document.createElement('li'); li.className = 'empty';
+          li.textContent = 'No registrations yet. Be the first to register above.';
+          latest.appendChild(li); return;
+        }
+        rows.forEach((r) => {
+          const li = document.createElement('li');
+          const b = document.createElement('strong'); b.textContent = r.name;
+          const rest = document.createTextNode(' registered for ' + r.event + ' ');
+          li.append(b, rest);
+          if (r.team) { const s = document.createElement('small'); s.textContent = '(' + r.team + ')'; li.appendChild(s); }
+          latest.appendChild(li);
+        });
+      } catch (err) { /* shown by loadEvents */ }
+    }
+
+    document.getElementById('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await api('/register', { method: 'POST', body: JSON.stringify({
+          event_id: Number(eventSelect.value),
+          name: document.getElementById('name').value,
+          email: document.getElementById('email').value,
+          team: document.getElementById('team').value,
+        })});
+        say('Registered successfully.', true);
+        e.target.reset();
+        loadLatest();
+      } catch (err) { say(err.message, false); }
+    });
+
+    loadEvents();
+    loadLatest();
+  </script>
+</body>
+</html>
